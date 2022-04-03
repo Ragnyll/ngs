@@ -1,0 +1,29 @@
+flowchart LR
+    subgraph NGS
+
+        subgraph Rooms
+            user_id --> room_id
+            subgraph Room
+                subgraph RoomState
+                    room_size
+                    connections
+                end
+                room_id
+                room_state --> RoomState
+            end
+        end
+    end
+
+    subgraph UserServer
+    end
+
+    subgraph RoomServer
+        room_map
+    end
+
+    subgraph Clients
+        user <-- gets handle to --> connections
+    end
+    UserServer <-- Looks for room to join in --> RoomServer
+    UserServer -- updates--> Rooms
+    Clients -- makes request to --> UserServer
