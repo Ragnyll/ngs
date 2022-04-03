@@ -1,0 +1,20 @@
+flowchart LR
+    subgraph NGS
+        B[Connections]
+        subgraph Game
+            A[Validator]
+            C[GameState]
+        end
+
+    end
+
+    subgraph NGC
+        E[Connection]
+        F[GameState] %% contains hash to compare if gamestate maches NGS
+        E <-- look for --> F %% only allowed to send gamestate deltas if there is an active connection
+    end
+
+    F --> A %% severs connection when no longer valid
+    A -- Compare State and update if valid --> C
+    C -- Send delta or rejection --> F
+    E -- Establish connection to --> B
