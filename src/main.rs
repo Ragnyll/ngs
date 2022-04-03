@@ -11,6 +11,12 @@ use std::io;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+/// Shorthand for the transmit half of the message channel.
+type Tx = mpsc::UnboundedSender<String>;
+
+/// Shorthand for the receive half of the message channel.
+type Rx = mpsc::UnboundedReceiver<String>;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let addr = env::args()
@@ -23,10 +29,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     println!("server running on {}", addr);
 
-    // Create the shared state. This is how all the peers communicate.
-    // The server task will hold a handle to this. For every new client, the
-    // `state` handle is cloned and passed into the task that processes the
-    // client connection.
     let state = Arc::new(Mutex::new(Shared::new()));
 
     loop {
@@ -46,12 +48,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 }
 
-/// Shorthand for the transmit half of the message channel.
-type Tx = mpsc::UnboundedSender<String>;
-
-/// Shorthand for the receive half of the message channel.
-type Rx = mpsc::UnboundedReceiver<String>;
-
 /// Data that is shared between all peers in the chat server.
 ///
 /// This is the set of `Tx` handles for all connected clients. Whenever a
@@ -59,7 +55,8 @@ type Rx = mpsc::UnboundedReceiver<String>;
 /// iterating over the `peers` entries and sending a copy of the message on each
 /// `Tx`.
 struct Shared {
-    peers: HashMap<SocketAddr, Tx>,
+    peers: HashMap<SocketAddr, (Tx, i32)>,
+    peer_count: i32
 }
 
 impl Shared {
@@ -67,15 +64,17 @@ impl Shared {
     fn new() -> Self {
         Self {
             peers: HashMap::new(),
+            peer_count: 0,
         }
     }
 
     /// Send a `LineCodec` encoded message to every peer, except
     /// for the sender.
     async fn broadcast(&mut self, sender: SocketAddr, message: &str) {
+        println!("All peers : {:?}", self.peers);
         for peer in self.peers.iter_mut() {
-            if *peer.0 != sender {
-                let _ = peer.1.send(message.into());
+            if *peer.0 != sender && peer.1.1 == 1 {
+                let _ = peer.1.0.send(message.into());
             }
         }
     }
@@ -110,7 +109,9 @@ impl Peer {
         let (tx, rx) = mpsc::unbounded_channel();
 
         // Add an entry for this `Peer` in the shared state map.
-        state.lock().await.peers.insert(addr, tx);
+        let current_peer = state.lock().await.peer_count;
+        state.lock().await.peer_count += 1;
+        state.lock().await.peers.insert(addr, (tx, current_peer));
 
         Ok(Peer { lines, rx })
     }
