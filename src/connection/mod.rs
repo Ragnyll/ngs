@@ -74,9 +74,8 @@ impl Shared {
     /// Send a `LineCodec` encoded message to every peer, except
     /// for the sender.
     pub async fn broadcast(&mut self, sender: SocketAddr, message: &str) {
-        println!("All peers : {:?}", self.peers);
         for peer in self.peers.iter_mut() {
-            if *peer.0 != sender && peer.1.1 == 1 {
+            if *peer.0 != sender { //  && peer.1.1 == 1 {
                 let _ = peer.1.0.send(message.into());
             }
         }

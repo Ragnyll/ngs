@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // room_id to rom_state
     let rooms = Arc::new(Mutex::new(HashMap::<u32, RoomState>::new()));
-    let room_meta: Arc<Mutex<room::RoomMeta>> = Arc::new(Mutex::new(HashMap::new()));
+    let room_meta = Arc::new(Mutex::new(HashMap::new()));
     let state = Arc::new(Mutex::new(connection::Shared::new()));
 
     loop {
@@ -81,11 +81,22 @@ async fn process(
         }
     }.parse().unwrap();
 
+
+    println!("room meta before matching {:?}", room_meta);
     // if requested user_id is found then get the room needed, otherwise create a new room
-    match room::find_room_with_user(requested_user_id, room_meta).await {
-        Some(r) => println!("found the user in room {r}"),
-        _ => println!("creating a new room")
+    match room::find_room_with_user(requested_user_id, &room_meta).await {
+        Some(r) => {
+            println!("found the user in room {r}. Lemme match them up");
+            room::add_user_to_room(username.parse::<u32>().unwrap(), r, &room_meta).await;
+        },
+        _ => {
+            println!("creating a new room");
+            let new_room_id = room::create_new_room(&room_meta).await.unwrap();
+            room::add_user_to_room(username.parse::<u32>().unwrap(), new_room_id, &room_meta).await;
+        }
     };
+
+    println!("room meta after matching {:?}", room_meta);
 
 
     // Register our peer with state which internally sets up some channels.
