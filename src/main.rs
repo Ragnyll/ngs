@@ -6,12 +6,16 @@ use tokio_stream::StreamExt;
 use tokio_util::codec::{Framed, LinesCodec};
 
 use futures::SinkExt;
+use std::collections::HashMap;
 use std::env;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+
+type RoomState = Arc<Mutex<connection::Shared>>;
 #[tokio::main]
+
 async fn main() -> Result<(), Box<dyn Error>> {
     let addr = env::args()
         .nth(1)
@@ -23,6 +27,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     println!("server running on {}", addr);
 
+    // room_id to rom_state
+    let rooms = Arc::new(Mutex::new(HashMap::<u32, RoomState>::new()));
     let state = Arc::new(Mutex::new(connection::Shared::new()));
 
     loop {
@@ -31,11 +37,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         // Clone a handle to the `Shared` state for the new connection.
         let state = Arc::clone(&state);
+        let rooms = Arc::clone(&rooms);
 
         // Spawn our handler to be run asynchronously.
         tokio::spawn(async move {
             println!("accepted connection");
-            if let Err(e) = process(state, stream, addr).await {
+            if let Err(e) = process(rooms, state, stream, addr).await {
                 println!("an error occurred; error = {:?}", e);
             }
         });
@@ -45,24 +52,34 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 /// Process an individual chat client
 async fn process(
+    rooms: Arc<Mutex<HashMap<u32, RoomState>>>,
     state: Arc<Mutex<connection::Shared>>,
     stream: TcpStream,
     addr: SocketAddr,
 ) -> Result<(), Box<dyn Error>> {
     let mut lines = Framed::new(stream, LinesCodec::new());
 
-    // Send a prompt to the client to enter their username.
     lines.send("Please enter your username:").await?;
-
-    // Read the first line from the `LineCodec` stream to get the username.
     let username = match lines.next().await {
         Some(Ok(line)) => line,
-        // We didn't get a line so we return early here.
         _ => {
             println!("Failed to get username from {}. Client disconnected.", addr);
             return Ok(());
         }
     };
+
+    lines.send("Please enter the user_id of whom you want to pair with").await?;
+    let requested_user_id: u32 = match lines.next().await {
+        Some(Ok(line)) => line,
+        _ => {
+            println!("Failed to get user_id_request from {}. Client disconnected.", addr);
+            return Ok(());
+        }
+    }.parse().unwrap();
+
+    // if requested user_id is found then get the room needed, otherwise create a new room
+
+
 
     // Register our peer with state which internally sets up some channels.
     let mut peer = connection::Peer::new(state.clone(), lines).await?;
