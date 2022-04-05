@@ -1,4 +1,5 @@
 use ngs::connection;
+use ngs::room;
 
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
@@ -29,6 +30,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // room_id to rom_state
     let rooms = Arc::new(Mutex::new(HashMap::<u32, RoomState>::new()));
+    let room_meta: Arc<Mutex<room::RoomMeta>> = Arc::new(Mutex::new(HashMap::new()));
     let state = Arc::new(Mutex::new(connection::Shared::new()));
 
     loop {
@@ -38,11 +40,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         // Clone a handle to the `Shared` state for the new connection.
         let state = Arc::clone(&state);
         let rooms = Arc::clone(&rooms);
+        let room_meta = Arc::clone(&room_meta);
 
         // Spawn our handler to be run asynchronously.
         tokio::spawn(async move {
             println!("accepted connection");
-            if let Err(e) = process(rooms, state, stream, addr).await {
+            if let Err(e) = process(room_meta, rooms, state, stream, addr).await {
                 println!("an error occurred; error = {:?}", e);
             }
         });
@@ -52,6 +55,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 /// Process an individual chat client
 async fn process(
+    room_meta: Arc<Mutex<room::RoomMeta>>,
     rooms: Arc<Mutex<HashMap<u32, RoomState>>>,
     state: Arc<Mutex<connection::Shared>>,
     stream: TcpStream,
@@ -78,7 +82,10 @@ async fn process(
     }.parse().unwrap();
 
     // if requested user_id is found then get the room needed, otherwise create a new room
-
+    match room::find_room_with_user(requested_user_id, room_meta).await {
+        Some(r) => println!("found the user in room {r}"),
+        _ => println!("creating a new room")
+    };
 
 
     // Register our peer with state which internally sets up some channels.
