@@ -84,20 +84,22 @@ async fn process(
 
     println!("room meta before matching {:?}", room_meta);
     // if requested user_id is found then get the room needed, otherwise create a new room
-    match room::find_room_with_user(requested_user_id, &room_meta).await {
+    let room_id = match room::find_room_with_user(requested_user_id, &room_meta).await {
         Some(r) => {
             println!("found the user in room {r}. Lemme match them up");
             room::add_user_to_room(username.parse::<u32>().unwrap(), r, &room_meta).await;
+            r
         },
         _ => {
             println!("creating a new room");
             let new_room_id = room::create_new_room(&room_meta).await.unwrap();
             room::add_user_to_room(username.parse::<u32>().unwrap(), new_room_id, &room_meta).await;
+            1u32
         }
     };
-
     println!("room meta after matching {:?}", room_meta);
 
+    println!("adding user {username} to room {room_id}");
 
     // Register our peer with state which internally sets up some channels.
     let mut peer = connection::Peer::new(state.clone(), lines).await?;
