@@ -21,7 +21,11 @@ pub async fn find_room_with_user(user_id: u32, rooms: &Arc<Mutex<RoomMeta>>) -> 
 
 /// adds the user_id to the given room_id
 /// TODO: replace the option with an error
-pub async fn add_user_to_room(user_id: u32, room_id: u32, rooms: &Arc<Mutex<RoomMeta>>) -> Option<()> {
+pub async fn add_user_to_room(
+    user_id: u32,
+    room_id: u32,
+    rooms: &Arc<Mutex<RoomMeta>>,
+) -> Option<()> {
     let mut rooms = rooms.lock().await;
     let room = rooms.get_mut(&room_id).unwrap();
     room.insert(user_id);
@@ -35,4 +39,17 @@ pub async fn create_new_room(rooms: &Arc<Mutex<RoomMeta>>) -> Option<u32> {
     let new_room_id = 1u32;
     rooms.insert(new_room_id, HashSet::new());
     Some(new_room_id)
+}
+
+/// Removes the user from the specified room.
+///
+/// If the user was not present in the room it will
+pub async fn remove_user_from_room(
+    user_id: u32,
+    room_id: u32,
+    rooms: &Arc<Mutex<RoomMeta>>,
+) -> bool {
+    let mut rooms = rooms.lock().await;
+    let room = rooms.get_mut(&room_id).unwrap();
+    room.remove(&user_id)
 }
