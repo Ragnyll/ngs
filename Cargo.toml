@@ -6,6 +6,7 @@ edition = "2021"
 rust-version = "1.60"
 
 [dependencies]
+clap = { version = "3", features = ["derive"] }
 futures = { version = "0.3", features = ["thread-pool"]}
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"

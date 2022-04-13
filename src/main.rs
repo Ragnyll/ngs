@@ -1,3 +1,5 @@
+use clap::Parser;
+
 use ngs::connection;
 
 use std::collections::HashMap;
@@ -8,12 +10,25 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
+/// NGS is a server for turn based games played by 1..n players over a tcp connection by passing
+/// around deltas.
+#[derive(Parser)]
+pub struct Cli {
+    /// The hostname to run the server off of
+    #[clap(long, short, default_value = "127.0.0.1")]
+    pub host: String,
+
+    /// The port to run the server off of
+    #[clap(long, short, default_value = "6142")]
+    pub port: u32,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let cli = Cli::parse();
+
     // start server
-    let addr = env::args()
-        .nth(1)
-        .unwrap_or_else(|| "127.0.0.1:6142".to_string());
+    let addr = format!("{}:{}", cli.host, cli.port).to_string();
 
     let listener = TcpListener::bind(&addr).await?;
 
