@@ -8,6 +8,8 @@ rust-version = "1.60"
 [dependencies]
 clap = { version = "3", features = ["derive"] }
 futures = { version = "0.3", features = ["thread-pool"]}
+log = "0.4"
+simple_logger = "2"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
 tokio-util = { version = "0.7.0", features = ["full"] }

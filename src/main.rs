@@ -1,10 +1,12 @@
 use clap::Parser;
 
+use log::LevelFilter;
 use ngs::connection;
 
+use simple_logger::SimpleLogger;
 use std::collections::HashMap;
-use std::env;
 use std::error::Error;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use tokio::net::TcpListener;
@@ -21,26 +23,34 @@ pub struct Cli {
     /// The port to run the server off of
     #[clap(long, short, default_value = "6142")]
     pub port: u32,
+
+    /// Amount of logging to allow from the server
+    #[clap(long, default_value = "info")]
+    pub log_level: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
+    let level = LevelFilter::from_str(&cli.log_level)?;
+    SimpleLogger::new().with_level(level).init().unwrap();
+
     // start server
     let addr = format!("{}:{}", cli.host, cli.port).to_string();
 
     let listener = TcpListener::bind(&addr).await?;
 
-    println!("server running on {}", addr);
-    // start room service
-    let room_meta = Arc::new(Mutex::new(HashMap::new()));
+    log::info!("Started Server on {addr}");
 
-    // listen for and process connections
+    // TODO: perhaps move this to its own service
+    let room_meta = Arc::new(Mutex::new(HashMap::new()));
+    log::info!("Received room service connection");
+
+    log::info!("Listening for new connections");
     let state = Arc::new(Mutex::new(connection::Shared::new()));
 
     loop {
-        // Asynchronously wait for an inbound TcpStream.
         let (stream, addr) = listener.accept().await?;
 
         // Clone a handle to the `Shared` state for the new connection.
@@ -49,11 +59,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         // Spawn our handler to be run asynchronously.
         tokio::spawn(async move {
-            println!("accepted connection");
+            log::info!("Accepted");
             if let Err(e) = connection::process(room_meta, state, stream, addr).await {
-                println!("an error occurred; error = {:?}", e);
+                log::error!("an error occurred; error = {:?}", e);
             }
         });
     }
 }
-
