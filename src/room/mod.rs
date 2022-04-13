@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use thiserror::Error;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -34,5 +33,25 @@ pub async fn remove_user_from_room(user_id: u32, room_id: u32, user_rooms: &Arc<
     log::trace!("User {} was unassiged from the room {}", user_id, room_id);
 }
 
-#[derive(Error, Debug)]
-pub enum RoomError {}
+#[cfg(test)]
+pub mod test {
+    use std::sync::Arc;
+    use std::collections::HashMap;
+    use super::RoomMeta;
+    use tokio::sync::Mutex;
+    use uuid::Uuid;
+
+    #[tokio::test]
+    async fn test_find_room_with_user() {
+        let room_meta: Arc<Mutex<RoomMeta>> = Arc::new(Mutex::new(HashMap::new()));
+
+        // find room with user does not find user if it's not found in any room
+        assert!(super::find_room_with_user(1u32, &room_meta).await.is_none());
+
+        // add the user to the room then make sure they can be found
+        let expected_room_id = Uuid::new_v4();
+        room_meta.lock().await.insert(1u32, expected_room_id);
+
+        assert_eq!(super::find_room_with_user(1u32, &room_meta).await.unwrap(), expected_room_id);
+    }
+}
