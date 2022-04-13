@@ -3,5 +3,5 @@ pub enum Handshake {
     Syn,
 
     /// The server's acknowldgment of a connection from a peer
-    Ack
+    Ack,
 }

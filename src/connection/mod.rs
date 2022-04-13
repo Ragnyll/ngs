@@ -36,7 +36,7 @@ pub struct Peer<'a> {
     /// The room id that the peer belongs to.
     pub room_id: u32,
 
-    pub user_id: &'a str
+    pub user_id: &'a str,
 }
 
 impl<'a> Peer<'a> {
@@ -57,7 +57,12 @@ impl<'a> Peer<'a> {
         state.lock().await.peer_count += 1;
         state.lock().await.peers.insert(addr, (tx, current_peer));
 
-        Ok(Peer { lines, rx, room_id, user_id: "billy" })
+        Ok(Peer {
+            lines,
+            rx,
+            room_id,
+            user_id: "billy",
+        })
     }
 }
 
@@ -131,17 +136,17 @@ pub async fn process(
 
     // // if requested user_id is found then get the room needed, otherwise create a new room
     // let room_id = match room::find_room_with_user(requested_user_id, &room_meta).await {
-        // Some(r) => {
-            // println!("found the user in room {r}. Lemme match them up");
-            // room::assign_user_to_room(username.parse::<u32>().unwrap(), r, &room_meta).await;
-            // r
-        // }
-        // _ => {
-            // println!("creating a new room");
-            // let new_room_id = room::create_new_room(&room_meta).await.unwrap();
-            // room::assign_user_to_room(username.parse::<u32>().unwrap(), new_room_id, &room_meta).await;
-            // 1u32
-        // }
+    // Some(r) => {
+    // println!("found the user in room {r}. Lemme match them up");
+    // room::assign_user_to_room(username.parse::<u32>().unwrap(), r, &room_meta).await;
+    // r
+    // }
+    // _ => {
+    // println!("creating a new room");
+    // let new_room_id = room::create_new_room(&room_meta).await.unwrap();
+    // room::assign_user_to_room(username.parse::<u32>().unwrap(), new_room_id, &room_meta).await;
+    // 1u32
+    // }
     // };
 
     // Register our peer with state which internally sets up some channels.
