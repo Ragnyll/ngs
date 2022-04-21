@@ -1,3 +1,5 @@
+mod game_join;
+
 use crate::room;
 use futures::SinkExt;
 use std::collections::HashMap;
@@ -17,7 +19,7 @@ type Tx = mpsc::UnboundedSender<String>;
 type Rx = mpsc::UnboundedReceiver<String>;
 
 /// The state for each connected client.
-pub struct Peer {
+pub struct Peer<'a> {
     /// The TCP socket wrapped with the `Lines` codec, defined below.
     ///
     /// This handles sending and receiving data on the socket. When using
@@ -33,15 +35,19 @@ pub struct Peer {
 
     /// The room id that the peer belongs to.
     pub room_id: u32,
+
+    /// The identifier uniquely identifying a user for their connection
+    /// TODO: make into a uuid
+    pub user_id: &'a str,
 }
 
-impl Peer {
+impl<'a> Peer<'a> {
     /// Create a new instance of `Peer`.
     pub async fn new(
         state: Arc<Mutex<Shared>>,
         lines: Framed<TcpStream, LinesCodec>,
         room_id: u32,
-    ) -> io::Result<Peer> {
+    ) -> io::Result<Peer<'a>> {
         // Get the client socket address
         let addr = lines.get_ref().peer_addr()?;
 
@@ -53,7 +59,12 @@ impl Peer {
         state.lock().await.peer_count += 1;
         state.lock().await.peers.insert(addr, (tx, current_peer));
 
-        Ok(Peer { lines, rx, room_id })
+        Ok(Peer {
+            lines,
+            rx,
+            room_id,
+            user_id: "billy",
+        })
     }
 }
 
@@ -98,56 +109,24 @@ pub async fn process(
 ) -> Result<(), Box<dyn Error>> {
     let mut lines = Framed::new(stream, LinesCodec::new());
 
-    lines.send("Please enter your username:").await?;
+    log::info!("Received new connection request, awaiting connection info");
     let username = match lines.next().await {
         Some(Ok(line)) => line,
         _ => {
+            // TODO handle the connection message here
+            // TODO timeout a connection if not received the connection string
             println!("Failed to get username from {}. Client disconnected.", addr);
             return Ok(());
         }
     };
 
-    lines
-        .send("Please enter the user_id of whom you want to pair with")
-        .await?;
-    let requested_user_id: u32 = match lines.next().await {
-        Some(Ok(line)) => line,
-        _ => {
-            println!(
-                "Failed to get user_id_request from {}. Client disconnected.",
-                addr
-            );
-            return Ok(());
-        }
-    }
-    .parse()
-    .unwrap();
-
-    println!("room meta before matching {:?}", room_meta);
-    // if requested user_id is found then get the room needed, otherwise create a new room
-    let room_id = match room::find_room_with_user(requested_user_id, &room_meta).await {
-        Some(r) => {
-            println!("found the user in room {r}. Lemme match them up");
-            room::add_user_to_room(username.parse::<u32>().unwrap(), r, &room_meta).await;
-            r
-        }
-        _ => {
-            println!("creating a new room");
-            let new_room_id = room::create_new_room(&room_meta).await.unwrap();
-            room::add_user_to_room(username.parse::<u32>().unwrap(), new_room_id, &room_meta).await;
-            1u32
-        }
-    };
-
-    println!("adding user {username} to room {room_id}");
-
     // Register our peer with state which internally sets up some channels.
-    let peer = Peer::new(state.clone(), lines, room_id).await?;
+    let peer = Peer::new(state.clone(), lines, 1u32).await?;
 
-    // A client has connected, let's let everyone know.
+    // A client has connected. Broadcast their arrival to the peers in the room
     {
         let mut state = state.lock().await;
-        let msg = format!("{} has joined the chat", username);
+        let msg = format!("{} has joined the game.", username);
         println!("{}", msg);
         state.broadcast(addr, &msg).await;
     }
@@ -159,7 +138,7 @@ pub async fn process(
 
 /// Once a peer is connected process the messages it sends and receives
 async fn process_messages(
-    mut peer: Peer,
+    mut peer: Peer<'_>,
     state: Arc<Mutex<Shared>>,
     username: &str,
     addr: SocketAddr,
@@ -169,6 +148,7 @@ async fn process_messages(
         tokio::select! {
             // A message was received from a peer. Send it to the current user.
             Some(msg) = peer.rx.recv() => {
+                // TODO augment the message with the users room id
                 if msg.contains("room_id: 1") {
                     println!("sending message: {msg}");
                     peer.lines.send(&msg).await?;
