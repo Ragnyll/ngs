@@ -1,4 +1,4 @@
-mod handshake;
+mod game_join;
 
 use crate::room;
 use futures::SinkExt;
@@ -36,6 +36,8 @@ pub struct Peer<'a> {
     /// The room id that the peer belongs to.
     pub room_id: u32,
 
+    /// The identifier uniquely identifying a user for their connection
+    /// TODO: make into a uuid
     pub user_id: &'a str,
 }
 
@@ -107,7 +109,7 @@ pub async fn process(
 ) -> Result<(), Box<dyn Error>> {
     let mut lines = Framed::new(stream, LinesCodec::new());
 
-    log::info!("Received connection request, awaiting connection info");
+    log::info!("Received new connection request, awaiting connection info");
     let username = match lines.next().await {
         Some(Ok(line)) => line,
         _ => {
@@ -118,44 +120,13 @@ pub async fn process(
         }
     };
 
-    lines
-        .send("Please enter the user_id of whom you want to pair with")
-        .await?;
-    let requested_user_id: u32 = match lines.next().await {
-        Some(Ok(line)) => line,
-        _ => {
-            println!(
-                "Failed to get user_id_request from {}. Client disconnected.",
-                addr
-            );
-            return Ok(());
-        }
-    }
-    .parse()
-    .unwrap();
-
-    // // if requested user_id is found then get the room needed, otherwise create a new room
-    // let room_id = match room::find_room_with_user(requested_user_id, &room_meta).await {
-    // Some(r) => {
-    // println!("found the user in room {r}. Lemme match them up");
-    // room::assign_user_to_room(username.parse::<u32>().unwrap(), r, &room_meta).await;
-    // r
-    // }
-    // _ => {
-    // println!("creating a new room");
-    // let new_room_id = room::create_new_room(&room_meta).await.unwrap();
-    // room::assign_user_to_room(username.parse::<u32>().unwrap(), new_room_id, &room_meta).await;
-    // 1u32
-    // }
-    // };
-
     // Register our peer with state which internally sets up some channels.
     let peer = Peer::new(state.clone(), lines, 1u32).await?;
 
-    // A client has connected, let's let everyone know.
+    // A client has connected. Broadcast their arrival to the peers in the room
     {
         let mut state = state.lock().await;
-        let msg = format!("{} has joined the chat", username);
+        let msg = format!("{} has joined the game.", username);
         println!("{}", msg);
         state.broadcast(addr, &msg).await;
     }
