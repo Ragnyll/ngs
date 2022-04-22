@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 use tokio_util::codec::{Framed, LinesCodec};
 
 /// Process an individual chat client
-pub async fn process(
+pub async fn process_connection(
     state: Arc<Mutex<Shared>>,
     stream: TcpStream,
     addr: SocketAddr,
@@ -21,12 +21,16 @@ pub async fn process(
     let mut lines = Framed::new(stream, LinesCodec::new());
 
     log::info!("Received new connection request, awaiting connection info");
+
+    // not everything serializes with a new line at the end. I need to accept either a specific
+    // delmiter or a specific byte size. perhaps new line is that specific delmiter, idk.
     let username = match lines.next().await {
-        Some(Ok(line)) => line,
+        Some(Ok(line)) => {
+            println!("got line {line:?}");
+            line
+        },
         _ => {
-            // TODO handle the connection message here
-            // TODO timeout a connection if not received the connection string
-            println!("Failed to get username from {}. Client disconnected.", addr);
+            println!("Invalid game join request from {addr}. Client disconnected.");
             return Ok(());
         }
     };

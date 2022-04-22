@@ -1,5 +1,5 @@
 use log::LevelFilter;
-use ngs::connection::{process, shared::Shared};
+use ngs::connection::{process_connection, shared::Shared};
 use ngs::cli::Cli;
 
 use simple_logger::SimpleLogger;
@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         // Spawn our handler to be run asynchronously.
         tokio::spawn(async move {
             log::info!("Accepted");
-            if let Err(e) = process(state, stream, addr).await {
+            if let Err(e) = process_connection(state, stream, addr).await {
                 log::error!("an error occurred; error = {:?}", e);
             }
         });
