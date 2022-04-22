@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use tokio::sync::mpsc;
 
-
 /// Shorthand for the transmit half of the message channel.
 pub type Tx = mpsc::UnboundedSender<String>;
 

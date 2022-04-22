@@ -1,5 +1,5 @@
 use log::LevelFilter;
-use ngs::connection;
+use ngs::connection::{process, shared::Shared};
 use ngs::cli::Cli;
 
 use simple_logger::SimpleLogger;
@@ -9,7 +9,6 @@ use std::sync::Arc;
 
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
-
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -25,11 +24,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     log::info!("Started Server on {addr}");
 
-    // TODO: perhaps move this to its own service
-    log::info!("Received room service connection");
-
     log::info!("Listening for new connections");
-    let state = Arc::new(Mutex::new(connection::shared::Shared::new()));
+    let state = Arc::new(Mutex::new(Shared::new()));
 
     loop {
         let (stream, addr) = listener.accept().await?;
@@ -40,7 +36,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         // Spawn our handler to be run asynchronously.
         tokio::spawn(async move {
             log::info!("Accepted");
-            if let Err(e) = connection::process(state, stream, addr).await {
+            if let Err(e) = process(state, stream, addr).await {
                 log::error!("an error occurred; error = {:?}", e);
             }
         });
