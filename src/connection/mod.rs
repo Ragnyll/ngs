@@ -28,7 +28,7 @@ pub async fn process_connection(
         Some(Ok(line)) => {
             println!("got line {line:?}");
             line
-        },
+        }
         _ => {
             println!("Invalid game join request from {addr}. Client disconnected.");
             return Ok(());
