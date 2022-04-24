@@ -34,19 +34,4 @@ impl Shared {
             }
         }
     }
-
-    /// Sends a message to the specific sendee
-    pub async fn respond(&mut self, sendee: SocketAddr, message: &str) {
-        if let Some(peer) = self.find_peer() {
-            peer.send("fuck you".into());
-        }
-
-    }
-
-    /// gets the Tx handle of the desired peer
-    ///
-    /// if the peer cannot be found it returns None
-    fn find_peer(&self) -> Option<Tx> {
-        None
-    }
 }

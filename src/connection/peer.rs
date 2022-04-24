@@ -42,7 +42,7 @@ impl<'a> Peer<'a> {
     pub async fn new(
         state: Arc<Mutex<Shared>>,
         lines: Framed<TcpStream, LinesCodec>,
-        user_id: &str
+        user_id: &'a str,
     ) -> io::Result<Peer<'a>> {
         // Get the client socket address
         let addr = lines.get_ref().peer_addr()?;
@@ -53,13 +53,17 @@ impl<'a> Peer<'a> {
         // Add an entry for this `Peer` in the shared state map.
         let current_peer = state.lock().await.peer_count;
         state.lock().await.peer_count += 1;
-        state.lock().await.peers.insert(addr, (tx.clone(), current_peer));
+        state
+            .lock()
+            .await
+            .peers
+            .insert(addr, (tx.clone(), current_peer));
 
         Ok(Peer {
             lines,
             rx,
             tx,
-            user_id: "billy",
+            user_id,
         })
     }
 }
