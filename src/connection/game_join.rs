@@ -6,14 +6,14 @@ use serde::{Deserialize, Serialize};
 /// If the Game join request is not valid they cannot join a game and will be booted from the
 /// server.
 #[derive(Debug, Deserialize)]
-pub struct GameJoinRequest<'a> {
+pub struct GameJoinRequest {
     /// The user joing the game's userid
-    user_id: &'a str,
+    pub user_id: String,
 
     /// The opponent being requested to play against.
     ///
     /// If the opponent_requested is None then the user_id is requesting a random opponent.
-    opponent_requested: Option<&'a str>,
+    pub opponent_request: Option<String>,
 }
 
 /// NGS will respond to the clients Join Requet with a GameJoinResponse, letting them know that
@@ -43,7 +43,7 @@ enum GameJoinStatus<'a> {
     Ready { msg: &'a str },
     /// The user's request to join the server has been timed out
     TimedOut { msg: &'a str },
-    /// The user's request to join the server has been denied
+    /// The user's legitimate request to join the server has been denied
     Denied { msg: &'a str },
 }
 

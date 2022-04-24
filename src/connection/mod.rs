@@ -2,7 +2,7 @@ mod game_join;
 mod peer;
 pub mod shared;
 
-use crate::connection::{peer::Peer, shared::Shared};
+use crate::connection::{peer::Peer, shared::Shared, game_join::GameJoinRequest};
 use futures::SinkExt;
 use std::error::Error;
 use std::net::SocketAddr;
@@ -22,30 +22,26 @@ pub async fn process_connection(
 
     log::info!("Received new connection request, awaiting connection info");
 
-    // not everything serializes with a new line at the end. I need to accept either a specific
-    // delmiter or a specific byte size. perhaps new line is that specific delmiter, idk.
-    let username = match lines.next().await {
+    // accetps utf-8 encoded messages split by '\n'
+    let game_join_request: GameJoinRequest = match lines.next().await {
         Some(Ok(line)) => {
-            println!("got line {line:?}");
-            line
+            serde_json::from_str(&line)?
         }
         _ => {
             println!("Invalid game join request from {addr}. Client disconnected.");
             return Ok(());
         }
     };
+    // user acepted send them a waiting response
+    let username = game_join_request.user_id;
+    log::info!("username: {username:?} is waiting");
 
     // Register our peer with state which internally sets up some channels.
-    let peer = Peer::new(state.clone(), lines, 1u32).await?;
+    let peer = Peer::new(state.clone(), lines, &username).await?;
+    // the client has been processed succesfully, tell them they are waiting
+    peer.tx.send(serde_json::to_string(&game_join::respond_wait())?);
 
-    // A client has connected. Broadcast their arrival to the peers in the room
-    {
-        let mut state = state.lock().await;
-        let msg = format!("{} has joined the game.", username);
-        println!("{}", msg);
-        state.broadcast(addr, &msg).await;
-    }
-
+    // the peer has been entered into the room, now just handle them
     process_messages(peer, state.clone(), &username, addr).await?;
 
     Ok(())
@@ -63,11 +59,8 @@ async fn process_messages(
         tokio::select! {
             // A message was received from a peer. Send it to the current user.
             Some(msg) = peer.rx.recv() => {
-                // TODO augment the message with the users room id
-                if msg.contains("room_id: 1") {
-                    println!("sending message: {msg}");
-                    peer.lines.send(&msg).await?;
-                }
+                println!("sending message: {msg}");
+                peer.lines.send(&msg).await?;
 
             }
             result = peer.lines.next() => match result {
@@ -75,7 +68,7 @@ async fn process_messages(
                 // broadcast this message to the other users.
                 Some(Ok(msg)) => {
                     let mut state = state.lock().await;
-                    let msg = format!("room_id: {} user: {}: {}", peer.room_id, username, msg);
+                    let msg = format!("user: {}: {}", username, msg);
 
                     state.broadcast(addr, &msg).await;
                 }

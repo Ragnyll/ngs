@@ -9,6 +9,9 @@ use tokio_util::codec::{Framed, LinesCodec};
 /// Shorthand for the receive half of the message channel.
 pub type Rx = mpsc::UnboundedReceiver<String>;
 
+/// Shorthand for the transmit half of the message channel.
+pub type Tx = mpsc::UnboundedSender<String>;
+
 /// The state for each connected client.
 pub struct Peer<'a> {
     /// The TCP socket wrapped with the `Lines` codec, defined below.
@@ -24,8 +27,10 @@ pub struct Peer<'a> {
     /// off of this `Rx`, it will be written to the socket.
     pub rx: Rx,
 
-    /// The room id that the peer belongs to.
-    pub room_id: u32,
+    /// Transmit half of the message channel.
+    ///
+    /// This is used to send a message to this peer.
+    pub tx: Tx,
 
     /// The identifier uniquely identifying a user for their connection
     /// TODO: make into a uuid
@@ -37,7 +42,7 @@ impl<'a> Peer<'a> {
     pub async fn new(
         state: Arc<Mutex<Shared>>,
         lines: Framed<TcpStream, LinesCodec>,
-        room_id: u32,
+        user_id: &str
     ) -> io::Result<Peer<'a>> {
         // Get the client socket address
         let addr = lines.get_ref().peer_addr()?;
@@ -48,12 +53,12 @@ impl<'a> Peer<'a> {
         // Add an entry for this `Peer` in the shared state map.
         let current_peer = state.lock().await.peer_count;
         state.lock().await.peer_count += 1;
-        state.lock().await.peers.insert(addr, (tx, current_peer));
+        state.lock().await.peers.insert(addr, (tx.clone(), current_peer));
 
         Ok(Peer {
             lines,
             rx,
-            room_id,
+            tx,
             user_id: "billy",
         })
     }

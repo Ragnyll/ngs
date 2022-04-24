@@ -1,6 +1,5 @@
 #!/bin/python3
-
-import pickle
+import json
 import socket
 
 target_host = "127.0.0.1"
@@ -10,8 +9,8 @@ client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 # let the client connect
 client.connect((target_host, target_port))
 # send some data
-connection_request = pickle.dumps({"user_id": "shirogane", "opponent_request": "kaguya" })
-client.send(connection_request)
+connection_request = json.dumps({"user_id": "shirogane", "opponent_request": "kaguya" }) + '\n'
+client.send(connection_request.encode('utf-8'))
 response = client.recv(4096)
 
 while True:
