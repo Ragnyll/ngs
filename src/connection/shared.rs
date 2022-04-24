@@ -16,6 +16,12 @@ pub struct Shared {
     pub peer_count: i32,
 }
 
+impl Default for Shared {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Shared {
     /// Create a new, empty, instance of `Shared`.
     pub fn new() -> Self {

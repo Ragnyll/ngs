@@ -24,9 +24,7 @@ pub async fn process_connection(
 
     // accetps utf-8 encoded messages split by '\n'
     let game_join_request: GameJoinRequest = match lines.next().await {
-        Some(Ok(line)) => {
-            serde_json::from_str(&line)?
-        }
+        Some(Ok(line)) => serde_json::from_str(&line)?,
         _ => {
             println!("Invalid game join request from {addr}. Client disconnected.");
             return Ok(());
@@ -39,7 +37,8 @@ pub async fn process_connection(
     // Register our peer with state which internally sets up some channels.
     let peer = Peer::new(state.clone(), lines, &username).await?;
     // the client has been processed succesfully, tell them they are waiting
-    peer.tx.send(serde_json::to_string(&game_join::respond_wait())?);
+    peer.tx
+        .send(serde_json::to_string(&game_join::respond_wait())?)?;
 
     // the peer has been entered into the room, now just handle them
     process_messages(peer, state.clone(), &username, addr).await?;

@@ -52,7 +52,7 @@ enum GameJoinStatus<'a> {
 pub fn respond_wait<'a>() -> GameJoinResponse<'a> {
     GameJoinResponse::new(
         GameJoinStatus::Waiting {
-            msg: &"you have been accepted by the game server and are awaiting an opponent",
+            msg: "you have been accepted by the game server and are awaiting an opponent",
         },
         None,
     )
