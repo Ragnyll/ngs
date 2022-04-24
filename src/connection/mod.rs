@@ -1,108 +1,19 @@
 mod game_join;
+mod peer;
+pub mod shared;
 
-use crate::room;
+use crate::connection::{peer::Peer, shared::Shared, game_join::GameJoinRequest};
 use futures::SinkExt;
-use std::collections::HashMap;
 use std::error::Error;
-use std::io;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio_stream::StreamExt;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::Mutex;
 use tokio_util::codec::{Framed, LinesCodec};
 
-/// Shorthand for the transmit half of the message channel.
-type Tx = mpsc::UnboundedSender<String>;
-
-/// Shorthand for the receive half of the message channel.
-type Rx = mpsc::UnboundedReceiver<String>;
-
-/// The state for each connected client.
-pub struct Peer<'a> {
-    /// The TCP socket wrapped with the `Lines` codec, defined below.
-    ///
-    /// This handles sending and receiving data on the socket. When using
-    /// `Lines`, we can work at the line level instead of having to manage the
-    /// raw byte operations.
-    pub lines: Framed<TcpStream, LinesCodec>,
-
-    /// Receive half of the message channel.
-    ///
-    /// This is used to receive messages from peers. When a message is received
-    /// off of this `Rx`, it will be written to the socket.
-    pub rx: Rx,
-
-    /// The room id that the peer belongs to.
-    pub room_id: u32,
-
-    /// The identifier uniquely identifying a user for their connection
-    /// TODO: make into a uuid
-    pub user_id: &'a str,
-}
-
-impl<'a> Peer<'a> {
-    /// Create a new instance of `Peer`.
-    pub async fn new(
-        state: Arc<Mutex<Shared>>,
-        lines: Framed<TcpStream, LinesCodec>,
-        room_id: u32,
-    ) -> io::Result<Peer<'a>> {
-        // Get the client socket address
-        let addr = lines.get_ref().peer_addr()?;
-
-        // Create a channel for this peer
-        let (tx, rx) = mpsc::unbounded_channel();
-
-        // Add an entry for this `Peer` in the shared state map.
-        let current_peer = state.lock().await.peer_count;
-        state.lock().await.peer_count += 1;
-        state.lock().await.peers.insert(addr, (tx, current_peer));
-
-        Ok(Peer {
-            lines,
-            rx,
-            room_id,
-            user_id: "billy",
-        })
-    }
-}
-
-/// Data that is shared between all peers in the chat server.
-///
-/// This is the set of `Tx` handles for all connected clients. Whenever a
-/// message is received from a client, it is broadcasted to all peers by
-/// iterating over the `peers` entries and sending a copy of the message on each
-/// `Tx`.
-pub struct Shared {
-    pub peers: HashMap<SocketAddr, (Tx, i32)>,
-    pub peer_count: i32,
-}
-
-impl Shared {
-    /// Create a new, empty, instance of `Shared`.
-    pub fn new() -> Self {
-        Self {
-            peers: HashMap::new(),
-            peer_count: 0,
-        }
-    }
-
-    /// Send a `LineCodec` encoded message to every peer, except
-    /// for the sender.
-    pub async fn broadcast(&mut self, sender: SocketAddr, message: &str) {
-        for peer in self.peers.iter_mut() {
-            if *peer.0 != sender {
-                //  && peer.1.1 == 1 {
-                let _ = peer.1 .0.send(message.into());
-            }
-        }
-    }
-}
-
 /// Process an individual chat client
-pub async fn process(
-    room_meta: Arc<Mutex<room::RoomMeta>>,
+pub async fn process_connection(
     state: Arc<Mutex<Shared>>,
     stream: TcpStream,
     addr: SocketAddr,
@@ -110,27 +21,26 @@ pub async fn process(
     let mut lines = Framed::new(stream, LinesCodec::new());
 
     log::info!("Received new connection request, awaiting connection info");
-    let username = match lines.next().await {
-        Some(Ok(line)) => line,
+
+    // accetps utf-8 encoded messages split by '\n'
+    let game_join_request: GameJoinRequest = match lines.next().await {
+        Some(Ok(line)) => serde_json::from_str(&line)?,
         _ => {
-            // TODO handle the connection message here
-            // TODO timeout a connection if not received the connection string
-            println!("Failed to get username from {}. Client disconnected.", addr);
+            println!("Invalid game join request from {addr}. Client disconnected.");
             return Ok(());
         }
     };
+    // user acepted send them a waiting response
+    let username = game_join_request.user_id;
+    log::info!("username: {username:?} is waiting");
 
     // Register our peer with state which internally sets up some channels.
-    let peer = Peer::new(state.clone(), lines, 1u32).await?;
+    let peer = Peer::new(state.clone(), lines, &username).await?;
+    // the client has been processed succesfully, tell them they are waiting
+    peer.tx
+        .send(serde_json::to_string(&game_join::respond_wait())?)?;
 
-    // A client has connected. Broadcast their arrival to the peers in the room
-    {
-        let mut state = state.lock().await;
-        let msg = format!("{} has joined the game.", username);
-        println!("{}", msg);
-        state.broadcast(addr, &msg).await;
-    }
-
+    // the peer has been entered into the room, now just handle them
     process_messages(peer, state.clone(), &username, addr).await?;
 
     Ok(())
@@ -148,11 +58,8 @@ async fn process_messages(
         tokio::select! {
             // A message was received from a peer. Send it to the current user.
             Some(msg) = peer.rx.recv() => {
-                // TODO augment the message with the users room id
-                if msg.contains("room_id: 1") {
-                    println!("sending message: {msg}");
-                    peer.lines.send(&msg).await?;
-                }
+                println!("sending message: {msg}");
+                peer.lines.send(&msg).await?;
 
             }
             result = peer.lines.next() => match result {
@@ -160,7 +67,7 @@ async fn process_messages(
                 // broadcast this message to the other users.
                 Some(Ok(msg)) => {
                     let mut state = state.lock().await;
-                    let msg = format!("room_id: {} user: {}: {}", peer.room_id, username, msg);
+                    let msg = format!("user: {}: {}", username, msg);
 
                     state.broadcast(addr, &msg).await;
                 }
