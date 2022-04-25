@@ -1,6 +1,7 @@
 use crate::connection::shared::Shared;
 
 use std::io;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, Mutex};
@@ -32,6 +33,9 @@ pub struct Peer<'a> {
     /// This is used to send a message to this peer.
     pub tx: Tx,
 
+    /// The SocketAddress of the peer.
+    pub addr: SocketAddr,
+
     /// The identifier uniquely identifying a user for their connection
     /// TODO: make into a uuid
     pub user_id: &'a str,
@@ -40,7 +44,7 @@ pub struct Peer<'a> {
 impl<'a> Peer<'a> {
     /// Create a new instance of `Peer`.
     pub async fn new(
-        state: Arc<Mutex<Shared>>,
+        state: Arc<Mutex<Shared<'_>>>,
         lines: Framed<TcpStream, LinesCodec>,
         user_id: &'a str,
     ) -> io::Result<Peer<'a>> {
@@ -63,6 +67,7 @@ impl<'a> Peer<'a> {
             lines,
             rx,
             tx,
+            addr,
             user_id,
         })
     }

@@ -14,7 +14,7 @@ use tokio_util::codec::{Framed, LinesCodec};
 
 /// Process an individual chat client
 pub async fn process_connection(
-    state: Arc<Mutex<Shared>>,
+    state: Arc<Mutex<Shared<'_>>>,
     stream: TcpStream,
     addr: SocketAddr,
 ) -> Result<(), Box<dyn Error>> {
@@ -41,7 +41,7 @@ pub async fn process_connection(
         .send(serde_json::to_string(&game_join::respond_wait())?)?;
 
     // the peer has been entered into the room, now just handle them
-    process_messages(peer, state.clone(), &username, addr).await?;
+    process_messages(peer, state.clone(), &username).await?;
 
     Ok(())
 }
@@ -49,9 +49,8 @@ pub async fn process_connection(
 /// Once a peer is connected process the messages it sends and receives
 async fn process_messages(
     mut peer: Peer<'_>,
-    state: Arc<Mutex<Shared>>,
+    state: Arc<Mutex<Shared<'_>>>,
     username: &str,
-    addr: SocketAddr,
 ) -> Result<(), Box<dyn Error>> {
     // Process incoming messages until our stream is exhausted by a disconnect.
     loop {
@@ -69,7 +68,7 @@ async fn process_messages(
                     let mut state = state.lock().await;
                     let msg = format!("user: {}: {}", username, msg);
 
-                    state.broadcast(addr, &msg).await;
+                    state.broadcast(peer.user_id, &msg).await;
                 }
                 // An error occurred.
                 Some(Err(e)) => {
@@ -85,10 +84,10 @@ async fn process_messages(
         }
     }
 
+    // remove the peer if it is not streaming any messages
     {
         let mut state = state.lock().await;
-        state.peers.remove(&addr);
-        // remove the peer from the room
+        state.better_peers.remove(peer.user_id);
     }
 
     Ok(())
