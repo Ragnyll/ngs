@@ -3,7 +3,7 @@ name = "ngs"
 description = "A TCP server for playing turn based games run off a delta based system"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.60"
+rust-version = "1.60.0"
 
 [dependencies]
 clap = { version = "3", features = ["derive"] }
@@ -16,4 +16,4 @@ thiserror = "1"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
 tokio-util = { version = "0.7.0", features = ["full"] }
-uuid = "1"
+uuid = { version = "1", features = ["v4"] }
