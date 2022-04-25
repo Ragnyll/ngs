@@ -15,7 +15,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    steps:
     - name: Checkout the head commit of the branch
       uses: actions/checkout@v2
       with:
